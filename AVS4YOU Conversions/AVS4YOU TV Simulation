@@ -6,7 +6,6 @@
 // Slider 5: Vertical Offset (Default ~5.0, Range -100.0 to 100.0)
 // Slider 6: Interframe Size (Default ~17.0, Range 0.0 to 100.0)
 
-__kernel void avs_tv_simulation(
     __read_only image2d_t src,
     __write_only image2d_t dst,
     sampler_t sampler,
