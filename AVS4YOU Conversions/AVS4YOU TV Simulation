@@ -6,40 +6,57 @@
 // Slider 5: Vertical Offset (Default ~5.0, Range -100.0 to 100.0)
 // Slider 6: Interframe Size (Default ~17.0, Range 0.0 to 100.0)
 
-float interline = slider1
-float amplitude = slider2
-float amp_offset = slider3
-float v_speed = slider4
-float v_offset = slider5
-float interframe = slider6
+__kernel void avs_tv_simulation(
+    __read_only image2d_t src,
+    __write_only image2d_t dst,
+    sampler_t sampler,
+    int2 res,
+    float time,
+    float slider1,
+    float slider2,
+    float slider3,
+    float slider4,
+    float slider5,
+    float slider6)
+{
+    int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    if (pos.x >= res.x || pos.y >= res.y) return;
 
-// Normalize coordinates (0.0 to 1.0)
-float2 uv = pos / res;
+    // Normalize coordinates to 0..1
+    float2 uv = convert_float2(pos) / convert_float2(res);
 
-// 1. Calculate Vertical Roll & Interframe Gap
-// AVS animates at a 25fps base cadence
-float roll = (v_offset * 0.01) + (time * v_speed * 0.025);
-float rolled_y = fmod(uv.y + roll, 1.0f);
-if (rolled_y < 0.0f) rolled_y += 1.0f;
+    float interline  = slider1;
+    float amplitude  = slider2;
+    float amp_offset = slider3;
+    float v_speed    = slider4;
+    float v_offset   = slider5;
+    float interframe = slider6;
 
-float gap_ratio = clamp(interframe * 0.005f, 0.0f, 0.95f);
+    // 1. Calculate Vertical Roll & Interframe Gap
+    float roll = (v_offset * 0.01f) + (time * v_speed * 0.025f);
+    float rolled_y = fmod(uv.y + roll, 1.0f);
+    if (rolled_y < 0.0f) rolled_y += 1.0f;
 
-if (rolled_y < gap_ratio) {
-    // Render black interframe bar
-    out = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
-} else {
-    // Remap remaining vertical space to full frame height
-    float frame_y = (rolled_y - gap_ratio) / (1.0f - gap_ratio);
+    float gap_ratio = clamp(interframe * 0.005f, 0.0f, 0.95f);
 
-    // 2. Calculate Horizontal Interline Wave Distortion
-    float freq = interline * 6.2831853f * 2.0f;
-    float phase = (amp_offset * 0.062831853f) + (time * 10.0f);
-    float wave = sin(frame_y * freq + phase) * (amplitude * 0.002f);
+    float4 outPixel = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
 
-    // Wrap horizontal coordinates seamlessly
-    float distorted_x = fmod(uv.x + wave, 1.0f);
-    if (distorted_x < 0.0f) distorted_x += 1.0f;
+    if (rolled_y >= gap_ratio) {
+        // Remap remaining vertical space to full frame height
+        float frame_y = (rolled_y - gap_ratio) / (1.0f - gap_ratio);
 
-    // Sample input buffer
-    out = read_imagef(src, sampler, (float2)(distorted_x, frame_y) * res);
+        // 2. Calculate Horizontal Interline Wave Distortion
+        float freq = interline * 6.28318530718f * 2.0f;
+        float phase = (amp_offset * 0.062831853f) + (time * 10.0f);
+        float wave = sin(frame_y * freq + phase) * (amplitude * 0.002f);
+
+        // Wrap horizontal coordinates seamlessly
+        float distorted_x = fmod(uv.x + wave, 1.0f);
+        if (distorted_x < 0.0f) distorted_x += 1.0f;
+
+        // Read image using normalized coordinates (0..1)
+        outPixel = read_imagef(src, sampler, (float2)(distorted_x, frame_y));
+    }
+
+    write_imagef(dst, pos, outPixel);
 }
