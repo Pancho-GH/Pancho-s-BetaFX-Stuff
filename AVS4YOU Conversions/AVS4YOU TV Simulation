@@ -6,12 +6,12 @@
 // Slider 5: Vertical Offset (Default ~5.0, Range -100.0 to 100.0)
 // Slider 6: Interframe Size (Default ~17.0, Range 0.0 to 100.0)
 
-float interline = slider1;
-float amplitude = slider2;
-float amp_offset = slider3;
-float v_speed = slider4;
-float v_offset = slider5;
-float interframe = slider6;
+float interline = slider1
+float amplitude = slider2
+float amp_offset = slider3
+float v_speed = slider4
+float v_offset = slider5
+float interframe = slider6
 
 // Normalize coordinates (0.0 to 1.0)
 float2 uv = pos / res;
