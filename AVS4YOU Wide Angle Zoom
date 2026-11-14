@@ -1,1 +1,60 @@
-WIP
+// AVS4YOU Wide Angle Zoom recreation for a BetaFX custom OpenCL kernel
+// Slider 1: Zoom (default 1.0; values >1 zoom in)
+// Slider 2: Wide-angle / barrel distortion (default 0.35; range 0.0 to 1.5)
+// Slider 3: Horizontal lens-center offset (default 0; percent, -50 to 50)
+// Slider 4: Vertical lens-center offset (default 0; percent, -50 to 50)
+// Slider 5: Zoom pulse amount (default 0; percent, 0 to 95)
+// Slider 6: Zoom pulse speed (default 1; cycles per second)
+
+    __read_only image2d_t src,
+    __write_only image2d_t dst,
+    sampler_t sampler,
+    int2 res,
+    float time,
+    float slider1,
+    float slider2,
+    float slider3,
+    float slider4,
+    float slider5,
+    float slider6)
+{
+    int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    if (pos.x >= res.x || pos.y >= res.y) return;
+
+    float2 uv = convert_float2(pos) / convert_float2(res);
+    float aspect = (float)res.x / max((float)res.y, 1.0f);
+
+    // Keep the lens center within the image, even for out-of-range slider values.
+    float2 center = (float2)(
+        clamp(0.5f + slider3 * 0.01f, 0.0f, 1.0f),
+        clamp(0.5f + slider4 * 0.01f, 0.0f, 1.0f));
+
+    float2 centered = uv - center;
+    float2 lens_pos = centered * (float2)(aspect, 1.0f);
+    float max_radius = length((float2)(
+        fmax(center.x, 1.0f - center.x) * aspect,
+        fmax(center.y, 1.0f - center.y)));
+    max_radius = fmax(max_radius, 0.0001f);
+
+    float radius = length(lens_pos);
+    float normalized_radius = clamp(radius / max_radius, 0.0f, 1.0f);
+    float distortion = clamp(slider2, 0.0f, 1.5f);
+
+    // Positive distortion pulls edge samples toward the lens center, producing
+    // a wide-angle/barrel look. Zoom and optional time-based pulsing are layered on top.
+    float pulse_amount = clamp(slider5 * 0.01f, 0.0f, 0.95f);
+    float pulse = 1.0f + pulse_amount * sin(time * slider6 * 6.28318530718f);
+    float zoom = fmax(slider1 * pulse, 0.01f);
+    float radial_scale = 1.0f - distortion * normalized_radius * normalized_radius;
+
+    float2 source_lens_pos = lens_pos * (radial_scale / zoom);
+    float2 source_uv = center + (float2)(source_lens_pos.x / aspect, source_lens_pos.y);
+
+    float4 out_pixel = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+    if (source_uv.x >= 0.0f && source_uv.x <= 1.0f &&
+        source_uv.y >= 0.0f && source_uv.y <= 1.0f) {
+        out_pixel = read_imagef(src, sampler, source_uv);
+    }
+
+    write_imagef(dst, pos, out_pixel);
+}
