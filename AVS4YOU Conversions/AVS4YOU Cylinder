@@ -1,0 +1,35 @@
+// AVS4YOU Cylinder Conversion for BetaFX Custom OpenCL Kernel
+// kFloat0 = Center X (0.0 to 1.0, default 0.5)
+// kFloat1 = Center Y (0.0 to 1.0, default 0.5)
+// kFloat2 = Radius (0.0 to 1.0, default 0.5)
+// kFloat3 = Degree / Strength (-1.0 to 1.0, default 0.5)
+// kFloat4 = Orientation (0.0 = Vertical Cylinder, 1.0 = Horizontal Cylinder)
+
+float2 uv = (float2)(x, y);
+float2 center = (float2)(kFloat0, kFloat1);
+float radius = max(kFloat2, 0.0001f);
+float degree = kFloat3;
+
+// Determine whether to displace along X (Vertical cylinder) or Y (Horizontal cylinder)
+float dist = (kFloat4 < 0.5f) ? (uv.x - center.x) : (uv.y - center.y);
+
+if (fabs(dist) < radius) {
+    // Normalize distance from center (-1.0 to 1.0)
+    float norm = dist / radius;
+    
+    // Cylindrical trigonometric mapping
+    float angle = asin(clamp(norm, -1.0f, 1.0f));
+    float warped = sin(angle * (1.0f - degree));
+    
+    // Blend between linear and cylindrical curve based on degree
+    float newOffset = mix(norm, warped, fabs(degree)) * radius;
+    
+    if (kFloat4 < 0.5f) {
+        uv.x = center.x + newOffset;
+    } else {
+        uv.y = center.y + newOffset;
+    }
+}
+
+kReadIndex = uv;
+kRead();
