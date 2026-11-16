@@ -1,33 +1,30 @@
-// AVS4YOU Cylinder Conversion for BetaFX Custom OpenCL Kernel
-// kFloat0 = Center X (0.0 to 1.0, default 0.5)
-// kFloat1 = Center Y (0.0 to 1.0, default 0.5)
-// kFloat2 = Radius (0.0 to 1.0, default 0.5)
-// kFloat3 = Degree / Strength (-1.0 to 1.0, default 0.5)
-// kFloat4 = Orientation (0.0 = Vertical Cylinder, 1.0 = Horizontal Cylinder)
+// AVS4YOU Cylinder Distortion Approximation for BetaFX OpenCL
+// kFloat0: Center (0.0 to 1.0, default 0.50 -> maps to AVS 640 on 1280px)
+// kFloat1: Radius (0.0 to 1.0, default 0.625 -> maps to AVS 800 on 1280px)
+// kFloat2: Degree (-1.0 to 10.0, default 2.0)
+// kFloat3: Vertical (1.0 = Vertical ON [default], 0.0 = Horizontal OFF)
 
 float2 uv = (float2)(x, y);
-float2 center = (float2)(kFloat0, kFloat1);
-float radius = max(kFloat2, 0.0001f);
-float degree = kFloat3;
+float center = kFloat0;
+float radius = max(kFloat1, 0.0001f);
+float degree = kFloat2;
+bool isVertical = (kFloat3 >= 0.5f);
 
-// Determine whether to displace along X (Vertical cylinder) or Y (Horizontal cylinder)
-float dist = (kFloat4 < 0.5f) ? (uv.x - center.x) : (uv.y - center.y);
+// Select axis based on Vertical toggle
+float coord = isVertical ? uv.x : uv.y;
+float dist = coord - center;
+float normDist = dist / radius;
 
-if (fabs(dist) < radius) {
-    // Normalize distance from center (-1.0 to 1.0)
-    float norm = dist / radius;
+if (fabs(normDist) < 1.0f) {
+    // Cylindrical arc projection inside the radius
+    float angle = asin(clamp(normDist, -1.0f, 1.0f));
+    float curved = sin(angle * (1.0f + degree * 0.25f)) * radius;
     
-    // Cylindrical trigonometric mapping
-    float angle = asin(clamp(norm, -1.0f, 1.0f));
-    float warped = sin(angle * (1.0f - degree));
-    
-    // Blend between linear and cylindrical curve based on degree
-    float newOffset = mix(norm, warped, fabs(degree)) * radius;
-    
-    if (kFloat4 < 0.5f) {
-        uv.x = center.x + newOffset;
+    // Apply distortion along the active axis
+    if (isVertical) {
+        uv.x = clamp(center + curved, 0.0f, 1.0f);
     } else {
-        uv.y = center.y + newOffset;
+        uv.y = clamp(center + curved, 0.0f, 1.0f);
     }
 }
 
