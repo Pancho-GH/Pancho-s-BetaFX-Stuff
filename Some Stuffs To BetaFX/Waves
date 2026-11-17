@@ -1,0 +1,27 @@
+float2 uv = (float2)(x, y);
+
+// Time / Phase progression
+float t = kTime * 6.2831853f;
+
+// 5 Waves parameters (Frequencies & Amplitudes controlled via sliders)
+// Defaults mimic classic 5 Waves presets (Peaks: 1, 2, 3, 4, 7)
+float w1 = sin((uv.y * 1.0f * 6.2831853f) + (t * (kFloat5 / 20.0f))) * (kFloat0 * 0.01f);
+float w2 = sin((uv.y * 2.0f * 6.2831853f) + (t * (kFloat6 / 20.0f))) * (kFloat1 * 0.01f);
+float w3 = sin((uv.y * 3.0f * 6.2831853f) + (t * (kFloat7 / 20.0f))) * (kFloat2 * 0.01f);
+float w4 = sin((uv.y * 4.0f * 6.2831853f) + (t * (kFloat8 / 20.0f))) * (kFloat3 * 0.01f);
+float w5 = sin((uv.y * 7.0f * 6.2831853f) + (t * (kFloat9 / 20.0f))) * (kFloat4 * 0.01f);
+
+float totalWave = w1 + w2 + w3 + w4 + w5;
+
+// Apply displacement (KFLOAT10 switches between Horizontal [0] and Vertical [1])
+if (kFloat10 < 0.5f) {
+    uv.x += totalWave;
+} else {
+    uv.y += totalWave;
+}
+
+// Tile / Wrap coordinates seamlessly within [0.0, 1.0]
+uv = uv - floor(uv);
+
+kReadIndex = uv;
+kRead();
