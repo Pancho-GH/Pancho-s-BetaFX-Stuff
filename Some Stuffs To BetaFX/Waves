@@ -13,7 +13,7 @@ float w5 = sin((uv.y * 7.0f * 6.2831853f) + (t * (kFloat9 / 20.0f))) * (kFloat4 
 
 float totalWave = w1 + w2 + w3 + w4 + w5;
 
-// Apply displacement (KFLOAT10 switches between Horizontal [0] and Vertical [1])
+// Apply displacement (KFLOAT10 switches between Horizontal and Vertical)
 if (kFloat10 < 0.5f) {
     uv.x += totalWave;
 } else {
