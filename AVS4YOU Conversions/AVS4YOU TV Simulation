@@ -1,46 +1,38 @@
+// Parameter mapping to AVS4YOU TV Simulation sliders:
+// kFloat0: Interline        (Default: 5.0   | Range: 0 to 20)
+// kFloat1: Amplitude        (Default: 14.0  | Range: 0 to 50)
+// kFloat2: Amplitude Offset (Default: 5.0   | Range: -100 to 100)
+// kFloat3: Vertical Speed   (Default: 20.0  | Range: -100 to 100)
+// kFloat4: Vertical Offset  (Default: 5.0   | Range: -100 to 100)
+// kFloat5: Interframe Size  (Default: 17.0  | Range: 0 to 100)
 
-// AVS4YOU TV Simulation Recreation for BetaFX Custom OpenCL Kernel
-// Slider 1: Interline (Default ~5.0, Range 0.0 to 20.0)
-// Slider 2: Amplitude (Default ~14.0, Range 0.0 to 50.0)
-// Slider 3: Amplitude Offset (Default ~5.0, Range -100.0 to 100.0)
-// Slider 4: Vertical Speed (Default ~20.0, Range -100.0 to 100.0)
-// Slider 5: Vertical Offset (Default ~5.0, Range -100.0 to 100.0)
-// Slider 6: Interframe Size (Default ~17.0, Range 0.0 to 100.0)
+float interline   = kFloat0;
+float amp         = kFloat1 / 200.0f;
+float ampOffset   = kFloat2 / 50.0f;
+float vSpeed      = kFloat3 / 25.0f;
+float vOffset     = kFloat4 / 100.0f;
+float barSize     = clamp(kFloat5 / 100.0f, 0.0f, 0.99f);
 
-float interline = slider1;
-float amplitude = slider2;
-float amp_offset = slider3;
-float v_speed = slider4;
-float v_offset = slider5;
-float interframe = slider6;
+// 1. Vertical rolling and offset (normalized 0.0 to 1.0 space)
+float rollY = fmod(y + vOffset + (kTime * vSpeed), 1.0f);
+if (rollY < 0.0f) rollY += 1.0f;
 
-// Normalize coordinates (0.0 to 1.0)
-float2 uv = pos / res;
-
-// 1. Calculate Vertical Roll & Interframe Gap
-// AVS animates at a 25fps base cadence
-float roll = (v_offset * 0.01) + (time * v_speed * 0.025);
-float rolled_y = fmod(uv.y + roll, 1.0f);
-if (rolled_y < 0.0f) rolled_y += 1.0f;
-
-float gap_ratio = clamp(interframe * 0.005f, 0.0f, 0.95f);
-
-if (rolled_y < gap_ratio) {
-    // Render black interframe bar
-    out = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+// 2. Interframe black bar calculation
+if (rollY < barSize) {
+    kOutput = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
 } else {
-    // Remap remaining vertical space to full frame height
-    float frame_y = (rolled_y - gap_ratio) / (1.0f - gap_ratio);
+    // Remap remaining height to fill the visible frame area
+    float frameY = (rollY - barSize) / (1.0f - barSize);
 
-    // 2. Calculate Horizontal Interline Wave Distortion
-    float freq = interline * 6.2831853f * 2.0f;
-    float phase = (amp_offset * 0.062831853f) + (time * 10.0f);
-    float wave = sin(frame_y * freq + phase) * (amplitude * 0.002f);
+    // 3. Horizontal scanline wave & interline jitter
+    float scanWave = sin((frameY * 40.0f) + ampOffset + (kTime * 12.0f));
+    float interlineJitter = sin(frameY * interline * 60.0f) * (interline / 400.0f);
+    float dispX = (scanWave * amp) + interlineJitter;
 
-    // Wrap horizontal coordinates seamlessly
-    float distorted_x = fmod(uv.x + wave, 1.0f);
-    if (distorted_x < 0.0f) distorted_x += 1.0f;
+    // Wrap horizontal coordinates so torn lines loop around edges
+    float readX = fmod(x + dispX, 1.0f);
+    if (readX < 0.0f) readX += 1.0f;
 
-    // Sample input buffer
-    out = read_imagef(src, sampler, (float2)(distorted_x, frame_y) * res);
+    kReadIndex = (float2)(readX, frameY);
+    kRead();
 }
