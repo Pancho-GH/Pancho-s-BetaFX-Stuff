@@ -9,9 +9,6 @@
 float width = (float)p_Width;
 float height = (float)p_Height;
 
-float maxX = fmax(width - 1.0f, 1.0f);
-float maxY = fmax(height - 1.0f, 1.0f);
-
 float interline   = kFloat0;
 float amp         = kFloat1 / 200.0f;
 float ampOffset   = kFloat2 / 50.0f;
