@@ -1,1 +1,43 @@
-WIP
+// Parameter bindings (adjust syntax to match your BetaFX build's header)
+// Slider 1: Distortion Strength (e.g., 0.0 to 0.25, default ~0.05)
+// Slider 2: Edge Highlight / Crack Tint (e.g., 0.0 to 1.0, default ~0.2)
+// Slider 3: Normal Map Scale / Debris Density (e.g., 0.5 to 3.0, default ~1.0)
+
+__kernel void main(
+    read_only image2d_t src0,      // Main video input (Buffer 0)
+    read_only image2d_t src1,      // Glass Normal Map image (Buffer 1)
+    write_only image2d_t dst,      // Output image
+    float strength,                // Slider 1
+    float edgeHighlight,           // Slider 2
+    float scale                    // Slider 3
+) {
+    const sampler_t sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
+    
+    int2 gid = (int2)(get_global_id(0), get_global_id(1));
+    int2 dim = get_image_dim(dst);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    // Normalized UV coordinates (0.0 to 1.0)
+    float2 uv = ((float2)(gid.x, gid.y) + 0.5f) / (float2)(dim.x, dim.y);
+
+    // Scale UVs from center for the normal map (simulates AVS "Debris" sizing)
+    float2 mapUV = (uv - 0.5f) / max(scale, 0.001f) + 0.5f;
+
+    // Sample the normal map (R = X normal, G = Y normal, B = Z normal)
+    float4 normSample = read_imagef(src1, sampler, mapUV);
+
+    // Convert [0.0, 1.0] RGB normal values to [-1.0, 1.0] direction vectors
+    float2 normalXY = normSample.xy * 2.0f - 1.0f;
+
+    // Displace the main video UV coordinates using the normal vector
+    float2 refractedUV = uv + (normalXY * strength);
+
+    // Sample the distorted video frame
+    float4 color = read_imagef(src0, sampler, refractedUV);
+
+    // Optional: Add subtle white specular highlights along shard edges (where Z normal tilts)
+    float edge = clamp(1.0f - normSample.z, 0.0f, 1.0f);
+    color.rgb += edge * edgeHighlight;
+
+    write_imagef(dst, gid, color);
+}
